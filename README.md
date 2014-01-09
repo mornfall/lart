@@ -26,7 +26,7 @@ The purpose of the entire exercise is to abstract away information from LLVM
 bitcode, making subsequent analyses more efficient (at the expense of some
 precision). To this end, we mainly need to be able to encode non-deterministic
 choice in LLVM programs, which can be done simply through a special-purpose
-function (similar to LLVM intrinsics). The function is named @lart.choice,
+function (similar to LLVM intrinsics). The function is named `@lart.choice`,
 takes a pair of bounds as arguments and non-deterministically returns a value
 that falls between those bounds.
 
@@ -34,15 +34,15 @@ This extension to LLVM semantics needs to be recognized by the downstream tool.
 This is also the only crucial deviation from standard LLVM bitcode. Many
 analysis tools will already implement a similar mechanism, either internally or
 even with an external interface. Adapting tools without support for
-@lart.choice to work with LART is usually very straightforward.
+`@lart.choice` to work with LART is usually very straightforward.
 
 There are other special-purpose functions provided by LART, namely the
-@lart.meta.* family, but as far as these instructions are concerned, most tools
+`@lart.meta.*` family, but as far as these instructions are concerned, most tools
 will be able to safely ignore their existence, just like with existing
-@llvm.dbg.* calls. Program transformations would be expected to retain those
+`@llvm.dbg.*` calls. Program transformations would be expected to retain those
 calls in case LART is called in to refine an abstraction (each abstraction
 provided by LART comes with a corresponding refinement procedure, which will
-often need to find the @lart.meta calls inserted by the abstraction).
+often need to find the `@lart.meta` calls inserted by the abstraction).
 
 While most traditional abstraction engines work as interpreters, abstractions
 can also be "compiled" into programs. Instead of (re-)interpreting instructions
@@ -125,6 +125,11 @@ problems into "shallow" ones manually.
 
 Applications
 ============
+
+We imagine a fairly generic abstraction-refinement tool, or a framework, would
+be useful in a number of applications. Our initial focus is software model
+checking, using both explicit-state and symbolic (bounded) backends. The scope
+will however ideally expand over time as the framework matures.
 
 In Explicit-State Model Checking
 --------------------------------
@@ -238,12 +243,160 @@ subset of already visited states, using the new program text. The a/r engine
 would need to keep the bit-to-bit memory layout of the program intact, and we
 would need to map program counters. Tricky, but might be doable.)
 
-Planned Abstractions 
+Planned Abstractions
 ====================
 
 (eventually, this will become "implemented abstractions")
 
-TBD: Flesh out the details of the abstractions and refinements to (initially)
-implement. Look at what parameters can be tuned in response to experimental
-evaluation. Find stock LLVM transforms that will be useful to run on the
-abstracted bitcode.
+Variable Elimination (Trivial Domain)
+-------------------------------------
+
+Eliminating variables from a program may be a simple yet valuable
+abstraction. The way this is achieved is mapping the variables to a one-element
+abstract domain (for succintness, let's call that abstract value '*'). Clearly,
+both true and false map to *, and hence any use of an abstract value of this
+type in a conditional will yield both outcomes. Special care needs to be taken
+when variable-size objects are created with the dimension of *. The only
+straightforward option seems to be to also abstract the content of such
+arrays/objects in the same fashion: any dereference into such an object at any
+index needs to yield '*'. Moreover, an out-of-bounds error should be signalled
+on each access to such array, as otherwise the abstraction would not
+overapproximate the concrete program.
+
+Further attention needs to be paid to concurrency. In concurrent applications,
+loads and stores must not be eliminated as a result of this abstraction, and
+for this reason it may be necessary to mark loads/stores of (possibly) abstract
+values as volatile.
+
+The only refinement strategy is to un-abstract a particular set of variables.
+
+Interval Domain
+---------------
+
+A more refined abstract domain chops up the concrete domain into a set of
+disjoint intervals. Again, particularly large intervals may need to be treated
+specially when used as a dimension.
+
+Refinement can un-abstract variables or it can split some of the intervals into
+smaller intervals.
+
+Modulus Domain
+--------------
+
+For some variables, it might be advantageous to map all elements equal up to a
+particular modulus to the same abstract value. This probably won't work that
+well in practical applications, but benchmarks that create an arbitrary integer
+to implement nondeterministic choice with a small bound would benefit greatly.
+
+Non-Abstraction Analyses and Transformations
+============================================
+
+When implementing abstractions, and especially refinement, there are analyses
+and transformations that are themselves not abstractions, but are very useful
+in implementing them. As a bonus, these may be useful on their own for external
+tools, and whenever possible, should provide their results in a form easily
+available to external tools.
+
+Pointer Analysis
+----------------
+
+In simple cases, aliasing information is not necessary for
+abstraction. However, for partial abstractions (and especially refinement),
+alias analysis is vital for obtaining efficient transformations and
+fine-grained refinement control. Consider cases where abstract values are
+stored by the program in address-taken variables (i.e. in LLVM memory as
+opposed to LLVM registers). The addresses of those variables can be passed
+around and a code location not obviously def-use related to the origin of the
+value can load the value into a register. There are two options to address this
+issue: if the entire alias set the particular variable belongs to is abstracted
+together, loads can be statically and reliably marked up as abstract or
+concrete. When the alias data is too coarse though, and a finer abstraction
+control is required, some loads may become ambiguous.
+
+To correctly transform ambiguous loads, an expensive runtime tracking mechanism
+is required to identify abstract values (and possibly their types when
+different variables use different abstract domains). This requires additional
+global storage proportional in size to the size of an alias set, and insertion
+of possibly complex branching at the point of each ambiguous load/store. The
+cost of implementing these transformations may be prohibitive: in this case, we
+may entirely drop support for "mixed" abstraction (with ambiguous loads), or we
+may instead produce bitcode with substantially altered semantics and expect the
+backend tool to implement runtime value tracking.
+
+Per-Value Abstraction
+---------------------
+
+We can view program semantics in terms of a number of concrete domains (each
+corresponding to a particular data type) and an algebra for each such domain,
+encompassing the operations of the data type available in the programming
+language. In cases where different concrete domains interact, special care
+needs to be taken though. There are a few examples of such inter-domain
+interactions:
+
+- most programming languages contain some sort of boolean concrete domain and a
+  number of predicates over other domains that produce results in the boolean
+  domain
+- array dimensions are usually specified using a scalar from some particular
+  concrete domain
+- various casting operators: bitcasting, width extension, truncation, etc.
+
+Such interactions cannot be easily captured in isolation for each domain
+separately. Apart from those limitations though, an abstraction is, in many
+cases, essentially a homomorphism from the concrete domain's algebra to the
+abstract domain's. We would like to be able to implement abstractions primarily
+in terms of such homomorphisms. Some attention to inter-domain interaction is
+unavoidable, but should be kept to a minimum -- at least as far as correctness
+is concerned. It is acceptable for special-casing where efficiency or precision
+improvements are desired.
+
+For the boolean domain, the easiest approach is to fix a true/false/maybe
+(tri-state logic) "abstract" domain: all abstractions are then expected to map
+abstract boolean predicates onto either the tri-state abstract domain or the
+concrete boolean domain of the program (the latter only being possible in
+fairly special cases).
+
+Casting is more tricky: combinatorial amount of code is required for
+translating between abstract domains. The simplest approach is to treat
+bit-casts as a type of aliasing and force both variables to be abstracted into
+the same abstract domain. This requires that an abstraction for a particular
+abstract domain can handle all concrete domains in a casting-alias set. We do
+not expect this to be a problem in practice. Inter-abstract-domain translation
+code then only needs to be provided in cases where extending the alias sets
+through casting would lead to unacceptable coarsening of refinement control, or
+where an abstraction is unable to handle all types (concrete domains) that can
+appear in a casting-alias set.
+
+Implementing Domain Homomorphisms
+---------------------------------
+
+The primary use case for LART is producing LLVM bitcode which is as close to
+the usual LLVM semantics as reasonably possible. In particular, stock LLVM
+tools should be directly usable with the transformed bitcode. Provided a
+suitable implementation of `@lart.choice` (random, external test vectors, ...)
+it should be possible to generate native code of the abstracted program and
+directly execute it.
+
+With suitable support code, an abstraction can be implemented in terms of a
+relatively straightforward "lowering function": code that, given a single LLVM
+instruction with concrete parameters and results, produces equivalent code (not
+necessarily a single instruction, intermediate values and even non-trivial
+control flow is permissible) over the abstract domain: the code obtains names
+of registers that contain the abstract parameters and a register where the
+abstract result is expected in subsequent code. Such a lowering function is
+substantially easier to implement than a full transformation pass. Based on
+this lowering function, LART can then construct a full transformation by
+supplying code to decide which registers and memory locations hold abstract
+values in a particular abstract domain and to adjust control flow to reflect
+the tri-state results of some abstracted operations.
+
+The main limitation of this approach is that the abstract values must have
+run-time representation that can be represented using scalar values in some
+concrete domain available in LLVM. For many abstract domains, this is not a
+problem but e.g. set-based abstract values cannot easily do this. In cases
+where a more complex representation for abstract values is required, the
+desired result can still be achieved using lowering alone, but a small
+concession in the semantics of the abstract code must be made: the lowered code
+can use pointers to represent the abstract values, which are then stored in the
+malloc heap. A compromise needs to be made between allowing to introduce leaks
+into the bitcode, or having to dutifully allocate and copy abstract values on
+(nearly) every instruction.
