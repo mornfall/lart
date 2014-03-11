@@ -1,0 +1,30 @@
+# -*- sh -*-
+
+. util
+
+llvm_precompile() {
+    test libdivine.a -nt `which divine` || divine compile --llvm --libraries-only || exit 200
+}
+
+llvm_prepare() {
+    cat > $1
+    llvm_precompile
+    divine compile --llvm $1 --precompiled=. >& progress
+}
+
+lart_cpp() {
+    llvm_prepare testcase.cpp
+    lart testcase.bc testout.bc "$@"
+}
+
+lart_c() {
+    llvm_prepare testcase.c
+    lart testcase.bc testout.bc "$@"
+}
+
+chmod +x check
+
+PATH=".:$PATH"
+
+set -vex -o pipefail
+trap "check debris" EXIT

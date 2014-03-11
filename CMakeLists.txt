@@ -15,3 +15,4 @@ add_definitions( ${LLVM_COMPILE_FLAGS} )
 
 add_subdirectory( lart )
 add_subdirectory( tools )
+add_subdirectory( test )
