@@ -15,30 +15,53 @@ struct Andersen {
     struct Node {
         bool queued;
         std::set< Node * > _pointsto;
-        llvm::Value *_value;
-
-        Node( llvm::Value *v ) : queued( false ), _value( v ) {}
+        Node() : queued( false ) {}
     };
 
     struct Constraint {
         enum Type {
             Ref,   //  left = &right (alloc)
-            Copy,  //  left =  right  (store)
+            Copy,  //  left =  right (bitcast, inttoptr &c.)
             Deref, //  left = *right (load)
             Store, // *left =  right  (store)
             GEP    //  left =  right + offset (getelementptr)
         };
         /* TODO: GEP needs a representation for offsets */
         Node *left, *right;
+        Type t;
     };
 
     /* each llvm::Value can have (at most) one associated Node */
     std::map< llvm::Value *, Node * > _nodes;
+    std::vector< Node * > _amls; // abstract memory locations
     std::vector< Constraint > _constraints;
     std::deque< Node * > _worklist;
 
     Node *pop();
     void push( Node *n );
+
+    void constraint( Constraint::Type t, Node *l, Node *r )
+    {
+        Constraint c;
+        c.t = t;
+        c.left = l;
+        c.right = r;
+        _constraints.push_back( c );
+    }
+
+    void constraint( Constraint::Type t, llvm::Instruction &l, Node *r ) {
+        if ( !_nodes[ &l ] )
+            _nodes[ &l ] = new Node;
+        return constraint( t, _nodes[ &l ], r );
+    }
+
+    void constraint( Constraint::Type t, llvm::Instruction &l, llvm::Value *r ) {
+        if ( !_nodes[ &l ] )
+            _nodes[ &l ] = new Node;
+        if ( !_nodes[ r ] )
+            _nodes[ r ] = new Node;
+        return constraint( t, _nodes[ &l ], _nodes[ r ] );
+    }
 
     void build( llvm::Instruction &i ); // set up _nodes and _constraints
     void build( llvm::Module &m ); // set up _nodes and _constraints

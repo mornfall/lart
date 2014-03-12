@@ -1,5 +1,7 @@
 // -*- C++ -*- (c) 2014 Petr Rockai <me@mornfall.net>
 
+#include <llvm/IR/Instructions.h>
+
 #include <lart/aa/andersen.h>
 
 namespace lart {
@@ -21,7 +23,7 @@ Andersen::Node *Andersen::pop() {
 }
 
 void Andersen::solve( Constraint c ) {
-    std::set< Node * > updated;
+    std::set< Node * > updated = c.left->_pointsto;
 
     // ...
 
@@ -45,7 +47,19 @@ void Andersen::solve() {
 }
 
 void Andersen::build( llvm::Instruction &i ) {
-    // build constraints
+
+    if ( llvm::isa< llvm::AllocaInst >( i ) ) {
+        _amls.push_back( new Node );
+        constraint( Constraint::Ref, i, _amls.back() );
+    }
+
+    if ( llvm::isa< llvm::StoreInst >( i ) )
+        constraint( Constraint::Store, i, i.getOperand( 1 ) );
+
+    if ( llvm::isa< llvm::LoadInst >( i ) )
+        constraint( Constraint::Deref, i, i.getOperand( 0 ) );
+
+    /* TODO: copy, gep */
 }
 
 void Andersen::build( llvm::Module &m ) {
