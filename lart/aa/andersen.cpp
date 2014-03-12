@@ -41,7 +41,13 @@ void Andersen::solve( Node *n ) {
             solve( *i );
 }
 
-void Andersen::solve() {
+void Andersen::solve()
+{
+    for ( auto i : _nodes )
+        push( i.second );
+    for ( auto i : _amls )
+        push( i );
+
     while ( !_worklist.empty() )
         solve( pop() );
 }
