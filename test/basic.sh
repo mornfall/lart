@@ -13,3 +13,17 @@ int main() {
     fun(&c, b);
 }
 EOF
+
+lart_c aa:andersen <<EOF
+int a;
+
+int main() {
+    int x, y;
+    int *b;
+
+    if (a)
+        b = &x;
+    else
+        b = &y;
+}
+EOF
