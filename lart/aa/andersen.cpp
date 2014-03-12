@@ -22,10 +22,28 @@ Andersen::Node *Andersen::pop() {
     return n;
 }
 
+template< typename Cin, typename Cout >
+void copyout( Cin &in, Cout &out ) {
+    std::copy( in.begin(), in.end(), std::inserter( out, out.begin() ) );
+}
+
 void Andersen::solve( Constraint c ) {
     std::set< Node * > updated = c.left->_pointsto;
 
-    // ...
+    switch ( c.t ) {
+        case Constraint::Ref:
+            updated.insert( c.right );
+            break;
+        case Constraint::Deref:
+            copyout( c.right->_pointsto, updated );
+            break;
+        case Constraint::Store:
+            for ( auto x : c.left->_pointsto ) {
+                copyout( c.right->_pointsto, x->_pointsto );
+                push( x );
+            }
+            break;
+    }
 
     if ( updated != c.left->_pointsto ) {
         c.left->_pointsto = updated;
