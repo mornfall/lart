@@ -84,6 +84,7 @@ void Andersen::build( llvm::Instruction &i ) {
         constraint( Constraint::Deref, &i, i.getOperand( 0 ) );
 
     /* TODO: copy, gep */
+    /* TODO: heap variables (malloc &c.) */
 }
 
 void Andersen::build( llvm::Module &m ) {
