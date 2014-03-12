@@ -60,10 +60,10 @@ void Andersen::build( llvm::Instruction &i ) {
     }
 
     if ( llvm::isa< llvm::StoreInst >( i ) )
-        constraint( Constraint::Store, i, i.getOperand( 1 ) );
+        constraint( Constraint::Store, i.getOperand( 1 ), i.getOperand( 0 ) );
 
     if ( llvm::isa< llvm::LoadInst >( i ) )
-        constraint( Constraint::Deref, i, i.getOperand( 0 ) );
+        constraint( Constraint::Deref, &i, i.getOperand( 0 ) );
 
     /* TODO: copy, gep */
 }

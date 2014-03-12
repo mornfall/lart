@@ -27,6 +27,8 @@ struct Andersen {
             GEP    //  left =  right + offset (getelementptr)
         };
         /* TODO: GEP needs a representation for offsets */
+
+        // ?left \subseteq ?right (with ? depending on Type)
         Node *left, *right;
         Type t;
     };
@@ -55,12 +57,12 @@ struct Andersen {
         return constraint( t, _nodes[ &l ], r );
     }
 
-    void constraint( Constraint::Type t, llvm::Instruction &l, llvm::Value *r ) {
-        if ( !_nodes[ &l ] )
-            _nodes[ &l ] = new Node;
+    void constraint( Constraint::Type t, llvm::Value *l, llvm::Value *r ) {
+        if ( !_nodes[ l ] )
+            _nodes[ l ] = new Node;
         if ( !_nodes[ r ] )
             _nodes[ r ] = new Node;
-        return constraint( t, _nodes[ &l ], _nodes[ r ] );
+        return constraint( t, _nodes[ l ], _nodes[ r ] );
     }
 
     void build( llvm::Instruction &i ); // set up _nodes and _constraints
