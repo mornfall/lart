@@ -39,6 +39,10 @@ struct Andersen {
     std::vector< Constraint > _constraints;
     std::deque< Node * > _worklist;
 
+    std::map< Node *, llvm::MDNode * > _mdnodes;
+    std::map< Node *, llvm::MDNode * > _mdtemp;
+    llvm::MDNode *_rootctx;
+
     Node *pop();
     void push( Node *n );
 
@@ -71,6 +75,8 @@ struct Andersen {
     void solve( Node *n ); // process the effect of a single node
     void solve(); // compute points-to sets for all nodes
     void annotate( llvm::Module &m ); // build up metadata nodes
+
+    llvm::MDNode *annotate( llvm::Module &m, Node *n, std::set< Node * > &seen );
 };
 
 }

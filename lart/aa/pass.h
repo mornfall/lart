@@ -24,6 +24,7 @@ struct Pass : llvm::ModulePass
                 a.build( m );
                 a.solve();
                 a.annotate( m );
+                return true;
             }
         }
         return false;

@@ -1,6 +1,7 @@
 // -*- C++ -*- (c) 2014 Petr Rockai <me@mornfall.net>
 
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Constants.h>
 
 #include <lart/aa/andersen.h>
 
@@ -97,8 +98,71 @@ void Andersen::build( llvm::Module &m ) {
                 build( i );
 }
 
+llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen ) {
+{
+    llvm::MDNode *mdn;
+
+    /* already converted */
+    if ( _mdnodes.count( n ) )
+        return _mdnodes.find( n )->second;
+
+    /* loop has formed, insert a temporary node and let the caller handle this */
+    if ( seen.count( n ) ) {
+        if ( _mdtemp.count( n ) )
+            return _mdtemp.find( n )->second;
+        mdn = llvm::MDNode::getTemporary(
+            m.getContext(), llvm::ArrayRef< llvm::Value * >() );
+        _mdtemp.insert( std::make_pair( n, mdn ) );
+        return mdn;
+    }
+
+    seen.insert( n );
+    int id = seen.size();
+
+    /* make the points-to set first */
+    {
+        std::set< Node * > &pto = n->_pointsto;
+        llvm::Value **v = new llvm::Value *[ pto.size() ], **vi = v;
+
+        int i = 0;
+        for ( Node *p : pto )
+            *vi++ = annotate( m, p, seen );
+
+        mdn = llvm::MDNode::get(
+            m.getContext(), llvm::ArrayRef< llvm::Value * >( v, pto.size() ) );
+    }
+
+    /* now make the AML node */
+    {
+        llvm::Value **v = new llvm::Value *[3];
+        v[0] = llvm::ConstantInt::get( m.getContext(), llvm::APInt( 32, id ) );
+        v[1] = _rootctx;
+        v[2] = mdn;
+        llvm::ArrayRef< llvm::Value * > vals( v, 3 );
+        mdn = llvm::MDNode::get( m.getContext(), vals );
+    }
+
+    _mdnodes.insert( std::make_pair( n, mdn ) );
+
+    /* close the cycles, if any */
+    if ( _mdtemp.count( n ) ) {
+        _mdtemp.find( n )->second->replaceAllUsesWith( mdn );
+        _mdtemp.erase( n );
+    }
+
+    return mdn;
+}
+
 void Andersen::annotate( llvm::Module &m ) {
-    // build metadata
+    llvm::NamedMDNode *global = m.getOrInsertNamedMetadata( "lart.aa_global" );
+    llvm::ArrayRef< llvm::Value * > ctxv(
+        llvm::MDString::get( m.getContext(), "lart.aa-root-context" ) );
+    _rootctx = llvm::MDNode::get( m.getContext(), ctxv );
+
+    std::set< Node * > seen;
+    for ( auto aml : _amls )
+        global->addOperand( annotate( m, aml, seen ) );
+    assert( _mdtemp.empty() );
 }
 
 }
