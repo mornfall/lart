@@ -5,6 +5,21 @@
 namespace lart {
 namespace aa {
 
+void Andersen::push( Node *n ) {
+    if ( n->queued )
+        return;
+
+    _worklist.push_back( n );
+    n->queued = true;
+}
+
+Andersen::Node *Andersen::pop() {
+    Node *n = _worklist.front();
+    _worklist.pop_front();
+    n->queued = false;
+    return n;
+}
+
 void Andersen::solve( Constraint c ) {
     std::set< Node * > updated;
 
@@ -12,10 +27,7 @@ void Andersen::solve( Constraint c ) {
 
     if ( updated != c.left->_pointsto ) {
         c.left->_pointsto = updated;
-        if ( !c.left->queued ) {
-            _worklist.push_back( c.left );
-            c.left->queued = true;
-        }
+        push( c.left );
     }
 }
 
@@ -28,12 +40,8 @@ void Andersen::solve( Node *n ) {
 }
 
 void Andersen::solve() {
-    while ( !_worklist.empty() ) {
-        Node *n = _worklist.front();
-        _worklist.pop_front();
-        n->queued = false;
-        solve( n );
-    }
+    while ( !_worklist.empty() )
+        solve( pop() );
 }
 
 void Andersen::build( llvm::Instruction &i ) {

@@ -37,6 +37,9 @@ struct Andersen {
     std::vector< Constraint > _constraints;
     std::deque< Node * > _worklist;
 
+    Node *pop();
+    void push( Node *n );
+
     void build( llvm::Instruction &i ); // set up _nodes and _constraints
     void build( llvm::Module &m ); // set up _nodes and _constraints
     void solve( Constraint c ); // process the effect of a single constraint
