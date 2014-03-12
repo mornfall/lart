@@ -36,5 +36,23 @@ void Andersen::solve() {
     }
 }
 
+void Andersen::build( llvm::Instruction &i ) {
+    // build constraints
+}
+
+void Andersen::build( llvm::Module &m ) {
+    for ( auto v = m.global_begin(); v != m.global_end(); ++ v )
+        ;
+
+    for ( auto &f : m )
+        for ( auto &b: f )
+            for ( auto &i : b )
+                build( i );
+}
+
+void Andersen::annotate( llvm::Module &m ) {
+    // build metadata
+}
+
 }
 }

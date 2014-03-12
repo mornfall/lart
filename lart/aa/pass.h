@@ -2,18 +2,30 @@
 
 #include <llvm/PassManager.h>
 
+#include <lart/aa/andersen.h>
+
 namespace lart {
 namespace aa {
 
-enum Type { Andersen };
 
 struct Pass : llvm::ModulePass
 {
+    enum Type { Andersen };
+
     static char ID;
-    Pass( Type t ) : llvm::ModulePass( ID ) {}
+    Type _type;
+    Pass( Type t ) : llvm::ModulePass( ID ), _type( t ) {}
     virtual ~Pass() {}
 
     bool runOnModule( llvm::Module &m ) {
+        switch ( _type ) {
+            case Andersen: {
+                aa::Andersen a;
+                a.build( m );
+                a.solve();
+                a.annotate( m );
+            }
+        }
         return false;
     }
 };

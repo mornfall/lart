@@ -40,10 +40,10 @@ PassOpts parse( char **pass )
 ModulePass *mkPass( std::string n, std::string opt )
 {
     if ( n == "aa" ) {
-        aa::Type t;
+        aa::Pass::Type t;
 
         if ( opt == "andersen" )
-            t = aa::Andersen;
+            t = aa::Pass::Andersen;
         else
             throw std::runtime_error( "unknown alias-analysis type: " + opt );
 
