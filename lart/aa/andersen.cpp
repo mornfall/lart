@@ -108,9 +108,12 @@ void Andersen::build( llvm::Module &m ) {
                 build( i );
 }
 
-llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
+typedef llvm::ArrayRef< llvm::Value * > ValsRef;
+using llvm::MDNode;
+
+MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
 {
-    llvm::MDNode *mdn;
+    MDNode *mdn;
 
     /* already converted */
     if ( _mdnodes.count( n ) )
@@ -120,8 +123,7 @@ llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &
     if ( seen.count( n ) ) {
         if ( _mdtemp.count( n ) )
             return _mdtemp.find( n )->second;
-        mdn = llvm::MDNode::getTemporary(
-            m.getContext(), llvm::ArrayRef< llvm::Value * >() );
+        mdn = MDNode::getTemporary( m.getContext(), ValsRef() );
         _mdtemp.insert( std::make_pair( n, mdn ) );
         return mdn;
     }
@@ -138,8 +140,7 @@ llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &
         for ( Node *p : pto )
             *vi++ = annotate( m, p, seen );
 
-        mdn = llvm::MDNode::get(
-            m.getContext(), llvm::ArrayRef< llvm::Value * >( v, pto.size() ) );
+        mdn = MDNode::get( m.getContext(), ValsRef( v, pto.size() ) );
     }
 
     /* now make the AML node */
@@ -149,7 +150,7 @@ llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &
         v[1] = _rootctx;
         v[2] = mdn;
         llvm::ArrayRef< llvm::Value * > vals( v, 3 );
-        mdn = llvm::MDNode::get( m.getContext(), vals );
+        mdn = MDNode::get( m.getContext(), vals );
     }
 
     _mdnodes.insert( std::make_pair( n, mdn ) );
