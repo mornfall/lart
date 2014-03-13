@@ -75,6 +75,7 @@ void Andersen::build( llvm::Instruction &i ) {
 
     if ( llvm::isa< llvm::AllocaInst >( i ) ) {
         _amls.push_back( new Node );
+        _amls.back()->aml = true;
         constraint( Constraint::Ref, i, _amls.back() );
     }
 
@@ -133,7 +134,7 @@ llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &
     }
 
     /* now make the AML node */
-    {
+    if ( n->aml ) {
         llvm::Value **v = new llvm::Value *[3];
         v[0] = llvm::ConstantInt::get( m.getContext(), llvm::APInt( 32, id ) );
         v[1] = _rootctx;
@@ -163,6 +164,13 @@ void Andersen::annotate( llvm::Module &m ) {
     for ( auto aml : _amls )
         global->addOperand( annotate( m, aml, seen ) );
     assert( _mdtemp.empty() );
+
+    for ( auto i : _nodes ) {
+        auto insn = llvm::dyn_cast< llvm::Instruction >( i.first );
+        if ( insn ) {
+            insn->setMetadata( "aa_def", annotate( m, i.second, seen ) );
+        }
+    }
 }
 
 }

@@ -13,9 +13,9 @@ namespace aa {
 
 struct Andersen {
     struct Node {
-        bool queued;
+        bool queued:1, aml:1;
         std::set< Node * > _pointsto;
-        Node() : queued( false ) {}
+        Node() : queued( false ), aml( false ) {}
     };
 
     struct Constraint {
