@@ -164,23 +164,43 @@ MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
     return mdn;
 }
 
+void Andersen::annotate( llvm::Instruction &insn, std::set< Node * > &seen )
+{
+    llvm::Module &m = *insn.getParent()->getParent()->getParent();
+
+    if ( _nodes.count( &insn ) )
+        insn.setMetadata( "aa_def", annotate( m, _nodes[ &insn ], seen ) );
+
+    int size = 0;
+    std::vector< Node * > ops;
+    for ( int i = 0; i < insn.getNumOperands(); ++i ) {
+        llvm::Value *op = insn.getOperand( i );
+        if ( !_nodes.count( op ) )
+            continue;
+        ops.push_back( _nodes[ op ] );
+        size += ops.back()->_pointsto.size();
+    }
+
+    llvm::Value **v = new llvm::Value *[ size ], **vi = v;
+    for ( Node *n : ops )
+        for ( Node *p : n->_pointsto )
+            *vi++ = annotate( m, p, seen );
+
+    insn.setMetadata( "aa_use", MDNode::get( m.getContext(), ValsRef( v, size ) ) );
+}
+
 void Andersen::annotate( llvm::Module &m ) {
-    llvm::NamedMDNode *global = m.getOrInsertNamedMetadata( "lart.aa_global" );
     llvm::ArrayRef< llvm::Value * > ctxv(
         llvm::MDString::get( m.getContext(), "lart.aa-root-context" ) );
-    _rootctx = llvm::MDNode::get( m.getContext(), ctxv );
+    _rootctx = MDNode::get( m.getContext(), ctxv );
 
     std::set< Node * > seen;
-    for ( auto aml : _amls )
-        global->addOperand( annotate( m, aml, seen ) );
-    assert( _mdtemp.empty() );
 
-    for ( auto i : _nodes ) {
-        auto insn = llvm::dyn_cast< llvm::Instruction >( i.first );
-        if ( insn ) {
-            insn->setMetadata( "aa_def", annotate( m, i.second, seen ) );
-        }
-    }
+    for ( auto &f : m )
+        for ( auto &b: f )
+            for ( auto &i : b )
+                annotate( i, seen );
+    assert( _mdtemp.empty() );
 }
 
 }

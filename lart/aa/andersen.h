@@ -77,6 +77,7 @@ struct Andersen {
     void annotate( llvm::Module &m ); // build up metadata nodes
 
     llvm::MDNode *annotate( llvm::Module &m, Node *n, std::set< Node * > &seen );
+    void annotate( llvm::Instruction &i, std::set< Node * > &seen );
 };
 
 }
