@@ -89,7 +89,12 @@ void Andersen::build( llvm::Instruction &i ) {
     if ( llvm::isa< llvm::LoadInst >( i ) )
         constraint( Constraint::Deref, &i, i.getOperand( 0 ) );
 
-    /* TODO: copy, gep */
+    if ( llvm::isa< llvm::BitCastInst >( i ) ||
+         llvm::isa< llvm::IntToPtrInst >( i ) ||
+         llvm::isa< llvm::PtrToIntInst >( i ) )
+        constraint( Constraint::Copy, &i, i.getOperand( 0 ) );
+
+    /* TODO: gep */
     /* TODO: heap variables (malloc &c.) */
 }
 
