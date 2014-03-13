@@ -36,6 +36,10 @@ void Andersen::solve( Constraint c ) {
             updated.insert( c.right );
             break;
         case Constraint::Deref:
+            for ( auto x : c.right->_pointsto )
+                copyout( x->_pointsto, updated );
+            break;
+        case Constraint::Copy:
             copyout( c.right->_pointsto, updated );
             break;
         case Constraint::Store:
