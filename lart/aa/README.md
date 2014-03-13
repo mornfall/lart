@@ -140,7 +140,12 @@ points-to set
 :   a set of abstract memory locations
 context tree
 :   each node points to a particular callsite, representing the static
-    callgraph of the program; leaf nodes additionaly contain a points-to set
+    callgraph of the program; leaf nodes additionaly contain a points-to set;
+    representing context trees is particularly tricky, because it is not
+    possible to directly store references to instructions in global metadata;
+    instead, context tree nodes are referenced from callsites, and value
+    use-def chains can be used to look up the callsite for a particular context
+    tree node
 AML map
 :   a function from abstract memory locations to context trees
 instruction
@@ -164,6 +169,16 @@ mapped naturally to LLVM metadata trees, AML maps are represented as a list of
 tuples (AML pointer, context tree pointer). Instructions get two named metadata
 slots, `!aa_def` and `!aa_use`, first representing the result points-to set and
 the other an AML map.
+
+## Context Trees
+
+As outlined earlier, context trees are particularly challenging to embed in
+LLVM metadata. The trees are formed with no references to the actual callsites
+they represent; instead, each callsite gets a unique ID and this ID is stored
+in the context tree. To make lookups easy, each callsite is annotated with a
+list of context tree nodes that reference its ID. Then, to obtain a pointer to
+the particular callsite instruction from a context tree node, we look at the
+node's use list -- the only instruction in the use list is the callsite.
 
 ## An Annotated IR Example
 
