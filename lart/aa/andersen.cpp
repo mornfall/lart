@@ -98,7 +98,7 @@ void Andersen::build( llvm::Module &m ) {
                 build( i );
 }
 
-llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen ) {
+llvm::MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
 {
     llvm::MDNode *mdn;
 
