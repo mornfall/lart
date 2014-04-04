@@ -15,11 +15,15 @@ llvm_prepare() {
 lart_cpp() {
     llvm_prepare testcase.cpp
     lart testcase.bc testout.bc "$@"
+    divine verify -p pointsto -d testout.bc -r > report
+    grep 'Property-Holds' report | grep Yes
 }
 
 lart_c() {
     llvm_prepare testcase.c
     lart testcase.bc testout.bc "$@"
+    divine verify -p pointsto -d testout.bc -r > report
+    grep 'Property-Holds' report | grep Yes
 }
 
 chmod +x check
