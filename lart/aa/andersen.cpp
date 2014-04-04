@@ -127,8 +127,13 @@ void Andersen::build( llvm::Instruction &i ) {
 }
 
 void Andersen::build( llvm::Module &m ) {
-    for ( auto v = m.global_begin(); v != m.global_end(); ++ v )
-        ;
+    for ( auto v = m.global_begin(); v != m.global_end(); ++ v ) {
+        if ( !v->hasInitializer() )
+            continue;
+        _amls.push_back( new Node );
+        _amls.back()->aml = true;
+        constraint( Constraint::Ref, v, _amls.back() );
+    }
 
     for ( auto &f : m )
         for ( auto &b: f )
