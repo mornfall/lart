@@ -42,6 +42,7 @@ struct Andersen {
     std::map< Node *, llvm::MDNode * > _mdnodes;
     std::map< Node *, llvm::MDNode * > _mdtemp;
     llvm::MDNode *_rootctx;
+    llvm::Module *_module;
 
     Node *pop();
     void push( Node *n );
@@ -55,10 +56,10 @@ struct Andersen {
         _constraints.push_back( c );
     }
 
-    void constraint( Constraint::Type t, llvm::Instruction &l, Node *r ) {
-        if ( !_nodes[ &l ] )
-            _nodes[ &l ] = new Node;
-        return constraint( t, _nodes[ &l ], r );
+    void constraint( Constraint::Type t, llvm::Value *l, Node *r ) {
+        if ( !_nodes[ l ] )
+            _nodes[ l ] = new Node;
+        return constraint( t, _nodes[ l ], r );
     }
 
     void constraint( Constraint::Type t, llvm::Value *l, llvm::Value *r ) {
@@ -69,6 +70,8 @@ struct Andersen {
         return constraint( t, _nodes[ l ], _nodes[ r ] );
     }
 
+    void constrainReturns( llvm::Function *f, llvm::Value *r );
+
     void build( llvm::Instruction &i ); // set up _nodes and _constraints
     void build( llvm::Module &m ); // set up _nodes and _constraints
     void solve( Constraint c ); // process the effect of a single constraint
@@ -76,8 +79,9 @@ struct Andersen {
     void solve(); // compute points-to sets for all nodes
     void annotate( llvm::Module &m ); // build up metadata nodes
 
-    llvm::MDNode *annotate( llvm::Module &m, Node *n, std::set< Node * > &seen );
-    void annotate( llvm::Instruction &i, std::set< Node * > &seen );
+    llvm::MDNode *annotate( Node *n, std::set< Node * > &seen );
+    void annotate( llvm::Instruction *i, std::set< Node * > &seen );
+    void annotate( llvm::GlobalValue *v, std::set< Node * > &seen );
 };
 
 }

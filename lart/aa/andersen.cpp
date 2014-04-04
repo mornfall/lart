@@ -2,6 +2,7 @@
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/Support/CallSite.h>
 
 #include <lart/aa/andersen.h>
 
@@ -75,12 +76,20 @@ void Andersen::solve()
         solve( pop() );
 }
 
+void Andersen::constrainReturns( llvm::Function *f, llvm::Value *r )
+{
+    for ( auto &b: *f )
+        for ( auto &i : b )
+            if ( llvm::isa< llvm::ReturnInst >( i ) )
+                constraint( Constraint::Copy, r, i.getOperand( 0 ) );
+}
+
 void Andersen::build( llvm::Instruction &i ) {
 
     if ( llvm::isa< llvm::AllocaInst >( i ) ) {
         _amls.push_back( new Node );
         _amls.back()->aml = true;
-        constraint( Constraint::Ref, i, _amls.back() );
+        constraint( Constraint::Ref, &i, _amls.back() );
     }
 
     if ( llvm::isa< llvm::StoreInst >( i ) )
@@ -91,12 +100,30 @@ void Andersen::build( llvm::Instruction &i ) {
 
     if ( llvm::isa< llvm::BitCastInst >( i ) ||
          llvm::isa< llvm::IntToPtrInst >( i ) ||
-         llvm::isa< llvm::PtrToIntInst >( i ) )
+         llvm::isa< llvm::PtrToIntInst >( i ) ||
+         llvm::isa< llvm::GetElementPtrInst >( i ) )
         constraint( Constraint::Copy, &i, i.getOperand( 0 ) );
 
-    /* TODO: gep */
-    /* TODO: heap variables (malloc &c.) */
-    /* TODO: callsites */
+    if ( llvm::isa< llvm::CallInst >( i ) ) {
+        llvm::CallSite cs( &i );
+        if ( auto *F = cs.getCalledFunction() ) {
+            if ( F->getName().str() == "__divine_malloc" ) { /* FIXME */
+                _amls.push_back( new Node );
+                _amls.back()->aml = true;
+                constraint( Constraint::Ref, &i, _amls.back() );
+            } else {
+                int idx = 0;
+                for ( auto arg = F->arg_begin(); arg != F->arg_end(); ++ arg ) {
+                    assert( idx <= i.getNumOperands() );
+                    constraint( Constraint::Copy, arg, i.getOperand( idx ) );
+                    ++ idx;
+                }
+                if ( !i.getType()->isVoidTy() )
+                    constrainReturns( F, &i );
+            }
+        }
+    }
+    /* TODO: phi nodes */
 }
 
 void Andersen::build( llvm::Module &m ) {
@@ -112,8 +139,9 @@ void Andersen::build( llvm::Module &m ) {
 typedef llvm::ArrayRef< llvm::Value * > ValsRef;
 using llvm::MDNode;
 
-MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
+MDNode *Andersen::annotate( Node *n, std::set< Node * > &seen )
 {
+    llvm::Module &m = *_module;
     MDNode *mdn;
 
     /* already converted */
@@ -139,7 +167,7 @@ MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
 
         int i = 0;
         for ( Node *p : pto )
-            *vi++ = annotate( m, p, seen );
+            *vi++ = annotate( p, seen );
 
         mdn = MDNode::get( m.getContext(), ValsRef( v, pto.size() ) );
     }
@@ -165,17 +193,19 @@ MDNode *Andersen::annotate( llvm::Module &m, Node *n, std::set< Node * > &seen )
     return mdn;
 }
 
-void Andersen::annotate( llvm::Instruction &insn, std::set< Node * > &seen )
+void Andersen::annotate( llvm::GlobalValue *v, std::set< Node * > &seen )
 {
-    llvm::Module &m = *insn.getParent()->getParent()->getParent();
+}
 
-    if ( _nodes.count( &insn ) )
-        insn.setMetadata( "aa_def", annotate( m, _nodes[ &insn ], seen ) );
+void Andersen::annotate( llvm::Instruction *insn, std::set< Node * > &seen )
+{
+    if ( _nodes.count( insn ) )
+        insn->setMetadata( "aa_def", annotate( _nodes[ insn ], seen ) );
 
     int size = 0;
     std::vector< Node * > ops;
-    for ( int i = 0; i < insn.getNumOperands(); ++i ) {
-        llvm::Value *op = insn.getOperand( i );
+    for ( int i = 0; i < insn->getNumOperands(); ++i ) {
+        llvm::Value *op = insn->getOperand( i );
         if ( !_nodes.count( op ) )
             continue;
         ops.push_back( _nodes[ op ] );
@@ -185,22 +215,30 @@ void Andersen::annotate( llvm::Instruction &insn, std::set< Node * > &seen )
     llvm::Value **v = new llvm::Value *[ size ], **vi = v;
     for ( Node *n : ops )
         for ( Node *p : n->_pointsto )
-            *vi++ = annotate( m, p, seen );
+            *vi++ = annotate( p, seen );
 
-    insn.setMetadata( "aa_use", MDNode::get( m.getContext(), ValsRef( v, size ) ) );
+    insn->setMetadata(
+        "aa_use", MDNode::get( _module->getContext(), ValsRef( v, size ) ) );
 }
 
 void Andersen::annotate( llvm::Module &m ) {
+    _module = &m;
+
+    llvm::NamedMDNode *global = m.getOrInsertNamedMetadata( "lart.aa_global" );
+
     llvm::ArrayRef< llvm::Value * > ctxv(
         llvm::MDString::get( m.getContext(), "lart.aa-root-context" ) );
     _rootctx = MDNode::get( m.getContext(), ctxv );
 
     std::set< Node * > seen;
 
+    for ( auto v = m.global_begin(); v != m.global_end(); ++ v )
+        annotate( v, seen );
+
     for ( auto &f : m )
         for ( auto &b: f )
             for ( auto &i : b )
-                annotate( i, seen );
+                annotate( &i, seen );
     assert( _mdtemp.empty() );
 }
 
