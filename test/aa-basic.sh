@@ -37,5 +37,21 @@ int main() {
         b = &x;
     else
         b = &y;
+    return *b;
+}
+EOF
+
+lart_c aa:andersen <<EOF
+int a;
+
+int main() {
+    int x, y;
+    int *b = &a;
+
+    if (__divine_choice(2))
+        b = &b;
+    else
+        b = &y;
+    return *b;
 }
 EOF
