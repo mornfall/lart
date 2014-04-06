@@ -45,9 +45,12 @@ void Andersen::solve( Constraint c ) {
             break;
         case Constraint::Store:
             for ( auto x : c.left->_pointsto ) {
+                int s = x->_pointsto.size();
                 copyout( c.right->_pointsto, x->_pointsto );
-                push( x );
+                if ( s < x->_pointsto.size() )
+                    push( x );
             }
+            updated = c.left->_pointsto; // XXX
             break;
     }
 
