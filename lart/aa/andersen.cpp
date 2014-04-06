@@ -126,6 +126,21 @@ void Andersen::build( llvm::Instruction &i ) {
             }
         }
     }
+
+    /*
+     * TODO: We need to support LLVM intrinsics here *somehow*. Lowering them
+     * might be an option, but we don't want to actually write out a version of
+     * the bitcode in that form. Lowering is a one-way process, though. To this
+     * end, we may need to make a working copy of the module, establish a
+     * mapping between those two copies, and then run lowering on one of them,
+     * maintaining the mapping somehow.
+     *
+     * Another option would be to do the lowering and just write it out, as a
+     * first step of LART as a whole. This does not impair code correctness,
+     * only efficiency: the code generator can no longer insert the efficient
+     * arch-specific code for those intrinsics.
+     */
+
     if ( llvm::isa< llvm::PHINode >( i ) )
         for ( int j = 0; j < i.getNumOperands(); ++j )
             constraint( Constraint::Copy, &i, i.getOperand( j ) );
