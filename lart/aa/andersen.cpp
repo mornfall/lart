@@ -133,9 +133,8 @@ void Andersen::build( llvm::Module &m ) {
     for ( auto v = m.global_begin(); v != m.global_end(); ++ v ) {
         if ( !v->hasInitializer() )
             continue;
-        _amls.push_back( new Node );
-        _amls.back()->aml = true;
-        constraint( Constraint::Ref, v, _amls.back() );
+        constraint( Constraint::Ref, v, v->getInitializer() );
+        _nodes[ v->getInitializer() ]->aml = true;
     }
 
     for ( auto &f : m )

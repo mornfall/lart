@@ -56,13 +56,24 @@ struct Andersen {
         _constraints.push_back( c );
     }
 
+    llvm::Value *fixGlobal( llvm::Value *v ) {
+        if ( auto gv = llvm::dyn_cast< llvm::GlobalVariable >( v ) ) {
+            if ( gv->hasInitializer() )
+                return gv->getInitializer();
+        }
+        return v;
+    }
+
     void constraint( Constraint::Type t, llvm::Value *l, Node *r ) {
+        l = fixGlobal( l );
         if ( !_nodes[ l ] )
             _nodes[ l ] = new Node;
         return constraint( t, _nodes[ l ], r );
     }
 
     void constraint( Constraint::Type t, llvm::Value *l, llvm::Value *r ) {
+        l = fixGlobal( l );
+        r = fixGlobal( r );
         if ( !_nodes[ l ] )
             _nodes[ l ] = new Node;
         if ( !_nodes[ r ] )
