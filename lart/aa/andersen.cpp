@@ -126,7 +126,9 @@ void Andersen::build( llvm::Instruction &i ) {
             }
         }
     }
-    /* TODO: phi nodes */
+    if ( llvm::isa< llvm::PHINode >( i ) )
+        for ( int j = 0; j < i.getNumOperands(); ++j )
+            constraint( Constraint::Copy, &i, i.getOperand( j ) );
 }
 
 void Andersen::build( llvm::Module &m ) {
